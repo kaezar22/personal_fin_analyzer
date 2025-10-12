@@ -101,7 +101,7 @@ def load_google_sheets(_key_path, _spreadsheet_id):
         sh = gc.open_by_key(_spreadsheet_id)
         
         # Load "detalle" worksheet
-        ws_detalle = sh.worksheet("detalle")
+        ws_detalle = sh.worksheet("cashflow2")
         values_detalle = ws_detalle.get_all_values()
         headers_detalle = values_detalle[0]
         data_detalle = values_detalle[1:]
@@ -110,15 +110,15 @@ def load_google_sheets(_key_path, _spreadsheet_id):
         df_detalle = clean_column_names(df_detalle)
         
         # Load "Cashflow" worksheet
-        ws_cashflow = sh.worksheet("Cashflow")
-        values_cashflow = ws_cashflow.get_all_values()
-        headers_cashflow = values_cashflow[0]
-        data_cashflow = values_cashflow[1:]
-        df_cashflow = pd.DataFrame(data_cashflow, columns=headers_cashflow)
+        #ws_cashflow = sh.worksheet("Cashflow")
+        #values_cashflow = ws_cashflow.get_all_values()
+        #headers_cashflow = values_cashflow[0]
+        #data_cashflow = values_cashflow[1:]
+        #df_cashflow = pd.DataFrame(data_cashflow, columns=headers_cashflow)
         # Limpiar nombres de columnas para cashflow
-        df_cashflow = clean_column_names(df_cashflow)
+        #df_cashflow = clean_column_names(df_cashflow)
         
-        return df_detalle, df_cashflow, None
+        return df_detalle None
     except Exception as e:
         return None, None, str(e)
 
@@ -553,4 +553,5 @@ if st.session_state.data_loaded and st.session_state.messages:
 st.sidebar.markdown("---")
 st.sidebar.markdown("🤖 **Powered by Gemini AI**")
 st.sidebar.markdown("📊 **Streamlit App**")
+
 st.sidebar.caption("Actualiza automáticamente cada 5 minutos")
