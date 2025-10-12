@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+import os
 import streamlit as st
 from openai import OpenAI
 import gspread
@@ -8,6 +10,7 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 
+load_dotenv(override=True)
 # Configuración de la página
 st.set_page_config(
     page_title="🏦 Analizador Financiero IA",
@@ -45,9 +48,9 @@ st.markdown("""
 st.sidebar.header("🔧 Configuración")
 
 # API Key hardcoded (no mostrar en interfaz)
-google_api_key = "AIzaSyCoMFqkP0COT38Ik61sy44w1BRg5AlFBdk"
+google_api_key = os.getenv("GOOGLE_API_KEY")
 
-key_path = r"service_account.json"
+key_path = os.getenv("key_path")
 
 
 spreadsheet_id = "185BYhloP_cxaikxb4lK4joFAC0SQCfea35l4Owb3tJs"
@@ -110,24 +113,24 @@ def load_google_sheets(_key_path, _spreadsheet_id):
         df_detalle = clean_column_names(df_detalle)
         
         # Load "Cashflow" worksheet
-        #ws_cashflow = sh.worksheet("Cashflow")
-        #values_cashflow = ws_cashflow.get_all_values()
-        #headers_cashflow = values_cashflow[0]
-        #data_cashflow = values_cashflow[1:]
-        #df_cashflow = pd.DataFrame(data_cashflow, columns=headers_cashflow)
+        # ws_cashflow = sh.worksheet("Cashflow")
+        # values_cashflow = ws_cashflow.get_all_values()
+        # headers_cashflow = values_cashflow[0]
+        # data_cashflow = values_cashflow[1:]
+        # df_cashflow = pd.DataFrame(data_cashflow, columns=headers_cashflow)
         # Limpiar nombres de columnas para cashflow
-        #df_cashflow = clean_column_names(df_cashflow)
+        # df_cashflow = clean_column_names(df_cashflow)
         
-        return df_detalle None
+        return df_detalle, None
     except Exception as e:
         return None, None, str(e)
 
-def dataframes_to_context(df_detalle, df_cashflow, max_rows=30):
+def dataframes_to_context(df_detalle, max_rows=120):
     """Convertir DataFrames a contexto para el modelo"""
     context = "=== DATOS DISPONIBLES ===\n\n"
     
     # Información sobre hoja "detalle"
-    context += f"1. HOJA 'DETALLE':\n"
+    context += f"1. HOJA 'cashflow2':\n"
     context += f"   - {len(df_detalle)} filas y {len(df_detalle.columns)} columnas\n"
     context += f"   - Columnas: {', '.join(df_detalle.columns)}\n"
     context += f"   - Primeras filas:\n"
@@ -138,85 +141,64 @@ def dataframes_to_context(df_detalle, df_cashflow, max_rows=30):
         context += "\n\n"
     
     # Información sobre hoja "Cashflow"
-    context += f"2. HOJA 'CASHFLOW':\n"
-    context += f"   - {len(df_cashflow)} filas y {len(df_cashflow.columns)} columnas\n"
-    context += f"   - Columnas: {', '.join(df_cashflow.columns)}\n"
-    context += f"   - Primeras filas:\n"
-    context += df_cashflow.head(max_rows).to_string(index=False)
-    if len(df_cashflow) > max_rows:
-        context += f"\n   ... y {len(df_cashflow) - max_rows} filas más."
+  #  context += f"2. HOJA 'CASHFLOW':\n"
+  #  context += f"   - {len(df_cashflow)} filas y {len(df_cashflow.columns)} columnas\n"
+  #  context += f"   - Columnas: {', '.join(df_cashflow.columns)}\n"
+  #  context += f"   - Primeras filas:\n"
+  #  context += df_cashflow.head(max_rows).to_string(index=False)
+  #  if len(df_cashflow) > max_rows:
+   #     context += f"\n   ... y {len(df_cashflow) - max_rows} filas más."
     
-    return context
+        return context
 
-def ask_ai_about_data(api_key, df_detalle, df_cashflow, question):
-    """Enviar pregunta al modelo Gemini y manejar solicitudes de gráficos"""
+def ask_ai_about_data(api_key, df_detalle, question):
+    """Enviar pregunta al modelo Gemini usando solo la hoja 'detalle'"""
     try:
-        # Initialize Gemini client
         gemini = OpenAI(
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )
-        
-        # Convertir DataFrames a contexto de texto
-        data_context = dataframes_to_context(df_detalle, df_cashflow)
-        
-        # Preparar el prompt del sistema
-        system_prompt = """Eres un asistente especializado en análisis de datos financieros. 
-        Te proporcionaré datos de DOS hojas de cálculo diferentes y debes responder preguntas sobre ellas.
-        
-        DATOS DISPONIBLES:
-        - HOJA 'DETALLE': Contiene información detallada de gastos/transacciones
-        - HOJA 'CASHFLOW': Contiene información de flujo de efectivo
-        
-        IMPORTANTE - SOLICITUDES DE GRÁFICOS:
-        Si el usuario pide un gráfico, gráfica, visualización o chart, debes:
-        1. Responder normalmente con el análisis de texto
-        2. AL FINAL de tu respuesta, incluir una sección especial con el formato:
-        
-        ---GRAFICO---
-        TIPO: [bar/line/pie/scatter]
-        TITULO: [título del gráfico]
-        DATOS: [descripción clara de qué datos filtrar y cómo agruparlos]
-        X: [qué va en eje X]
-        Y: [qué va en eje Y]
-        ---FIN_GRAFICO---
-        
-        Ejemplos de DATOS:
-        - "Filtrar hoja 'detalle' por categoría 'taxi', agrupar por mes, sumar montos"
-        - "Usar hoja 'cashflow', mostrar ingresos vs gastos por mes"
-        - "Top 10 categorías de gastos de hoja 'detalle' con sus totales"
-        
-        Instrucciones importantes:
-        1. Analiza cuidadosamente los datos de ambas hojas
-        2. Si necesitas hacer cálculos, explica tu proceso
-        3. Indica claramente de qué hoja obtienes la información
-        4. Si la información no está disponible en ninguna hoja, indícalo
-        5. Puedes combinar información de ambas hojas si es relevante
-        6. Proporciona respuestas precisas y útiles
-        7. Si ves patrones interesantes en cualquier hoja, puedes mencionarlos
-        8. Usa formato markdown para estructurar mejor tu respuesta
-        
-        Responde en español y sé conciso pero completo."""
-        
-        # Preparar los mensajes
+
+        # Convertir DataFrame a texto
+        data_context = dataframes_to_context(df_detalle)
+
+        # Nuevo prompt sin referencias a Cashflow
+        system_prompt = """Eres un asistente especializado en análisis de datos financieros personales.
+Te proporcionaré datos de una hoja llamada 'cashflow2' que contiene mis transacciones, categorías y fechas.
+
+Tu tarea es:
+1. Analizar los datos de la hoja 'cashflow2' y responder preguntas sobre gastos, ingresos o patrones.
+2. Si el usuario pide un gráfico, al final de tu respuesta incluye una sección con el formato:
+
+---GRAFICO---
+TIPO: [bar/line/pie/scatter]
+TITULO: [título del gráfico]
+DATOS: [descripción clara de qué filtrar y cómo agrupar]
+X: [eje X]
+Y: [eje Y]
+---FIN_GRAFICO---
+
+Responde en español, de forma clara y concisa. Si la información no está disponible, explícalo sin pedir otras hojas.
+"""
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Aquí están los datos de ambas hojas:\n\n{data_context}\n\nPregunta: {question}"}
+            {"role": "user", "content": f"Aquí están los datos de la hoja 'cashflow2':\n\n{data_context}\n\nPregunta: {question}"}
         ]
-        
-        # Hacer la llamada a la API
+
         response = gemini.chat.completions.create(
             model="gemini-2.0-flash",
             messages=messages
         )
-        
-        # Extraer la respuesta
+
         answer = response.choices[0].message.content
         return answer, None
+
     except Exception as e:
         return None, str(e)
 
-def create_chart_from_ai_response(response_text, df_detalle, df_cashflow):
+
+def create_chart_from_ai_response(response_text, df_detalle):
     """Crear gráfico basado en la respuesta de la IA"""
     try:
         if "---GRAFICO---" not in response_text:
@@ -245,15 +227,15 @@ def create_chart_from_ai_response(response_text, df_detalle, df_cashflow):
         datos_desc = chart_data.get('DATOS', '').lower()
         
         # Seleccionar DataFrame
-        if 'detalle' in datos_desc:
+        if 'cashflow2' in datos_desc:
             df = df_detalle.copy()
-            sheet_name = 'detalle'
-        elif 'cashflow' in datos_desc:
-            df = df_cashflow.copy()
-            sheet_name = 'cashflow'
+            sheet_name = 'cashflow2'
+       # elif 'cashflow' in datos_desc:
+       #     df = df_cashflow.copy()
+       #     sheet_name = 'cashflow'
         else:
             df = df_detalle.copy()  # Default
-            sheet_name = 'detalle'
+            sheet_name = 'cashflow2'
         
         # Intentar crear diferentes tipos de gráficos basados en palabras clave
         fig = None
@@ -289,9 +271,9 @@ def create_chart_from_ai_response(response_text, df_detalle, df_cashflow):
                 text_cols.append(col)
         
         # Crear gráfico simple basado en lo disponible
-        if 'taxi' in datos_desc.lower() and len(numeric_cols) > 0:
+        if 'transporte' in datos_desc.lower() and len(numeric_cols) > 0:
             # Filtrar por taxi si es posible
-            taxi_mask = df.astype(str).apply(lambda x: x.str.lower().str.contains('taxi', na=False)).any(axis=1)
+            taxi_mask = df.astype(str).apply(lambda x: x.str.lower().str.contains('transporte', na=False)).any(axis=1)
             if taxi_mask.any():
                 df_filtered = df[taxi_mask]
                 if len(df_filtered) > 0 and len(numeric_cols) > 0:
@@ -359,14 +341,14 @@ if 'data_loaded' not in st.session_state:
 # Botón para cargar datos
 if st.sidebar.button("🔄 Cargar/Actualizar Datos", type="primary"):
     with st.spinner("Cargando datos de Google Sheets..."):
-        df_detalle, df_cashflow, error = load_google_sheets(key_path, spreadsheet_id)
+        df_detalle, error = load_google_sheets(key_path, spreadsheet_id)
         
         if error:
             st.error(f"❌ Error al cargar datos: {error}")
             st.session_state.data_loaded = False
         else:
             st.session_state.df_detalle = df_detalle
-            st.session_state.df_cashflow = df_cashflow
+            # st.session_state.df_cashflow = df_cashflow
             st.session_state.data_loaded = True
             st.success("✅ Datos cargados exitosamente!")
 
@@ -377,16 +359,16 @@ if st.session_state.data_loaded:
     # Mostrar métricas básicas
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        st.metric("Detalle", f"{len(st.session_state.df_detalle)} filas")
-    with col2:
-        st.metric("Cashflow", f"{len(st.session_state.df_cashflow)} filas")
+        st.metric("cashflow2", f"{len(st.session_state.df_detalle)} filas")
+    # with col2:
+    #    st.metric("Cashflow", f"{len(st.session_state.df_cashflow)} filas")
     
     # Mostrar vista previa de datos
     with st.expander("📊 Vista previa de datos"):
-        tab1, tab2 = st.tabs(["📝 Detalle", "💰 Cashflow"])
+        tab1, tab2 = st.tabs(["📝 Cashflow2", "💰 Cashflow"])
         
         with tab1:
-            st.subheader("Hoja 'Detalle'")
+            st.subheader("Hoja 'Cashflow2'")
             st.write(f"**Columnas disponibles:** {len(st.session_state.df_detalle.columns)}")
             
             # Mostrar primeras columnas que no estén vacías
@@ -403,29 +385,29 @@ if st.session_state.data_loaded:
             else:
                 st.warning("No se encontraron columnas con datos válidos")
             
-        with tab2:
-            st.subheader("Hoja 'Cashflow'")
-            st.write(f"**Columnas disponibles:** {len(st.session_state.df_cashflow.columns)}")
+#        with tab2:
+#            st.subheader("Hoja 'Cashflow'")
+#            st.write(f"**Columnas disponibles:** {len(st.session_state.df_cashflow.columns)}")
             
             # Mostrar primeras columnas que no estén vacías
-            df_preview = st.session_state.df_cashflow.head(10)
+ #           df_preview = st.session_state.df_cashflow.head(10)
             
             # Filtrar columnas que no sean completamente vacías
-            non_empty_cols = []
-            for col in df_preview.columns:
-                if not df_preview[col].astype(str).str.strip().eq('').all():
-                    non_empty_cols.append(col)
+#            non_empty_cols = []
+#            for col in df_preview.columns:
+#                if not df_preview[col].astype(str).str.strip().eq('').all():
+#                    non_empty_cols.append(col)
             
-            if non_empty_cols:
-                st.dataframe(df_preview[non_empty_cols[:10]])  # Mostrar máximo 10 columnas
-            else:
-                st.warning("No se encontraron columnas con datos válidos")
+#            if non_empty_cols:
+#                st.dataframe(df_preview[non_empty_cols[:10]])  # Mostrar máximo 10 columnas
+#            else:
+#                st.warning("No se encontraron columnas con datos válidos")
 
 # Preguntas predefinidas
 if st.session_state.data_loaded:
     st.sidebar.markdown("### 💡 Preguntas sugeridas")
     preguntas_sugeridas = [
-        "¿Cuánto gasté en taxis en marzo?"
+        "¿Cuánto gasté en transporte en Octubre?"
     ]
     
     for pregunta in preguntas_sugeridas:
@@ -452,8 +434,8 @@ if st.session_state.data_loaded:
                     # Mostrar el gráfico si está en el historial
                     fig = create_chart_from_ai_response(
                         response_content, 
-                        st.session_state.df_detalle, 
-                        st.session_state.df_cashflow
+                        st.session_state.df_detalle
+#                        st.session_state.df_cashflow
                     )
                     if fig:
                         st.plotly_chart(fig, use_container_width=True)
@@ -473,7 +455,6 @@ if st.session_state.data_loaded:
                 response, error = ask_ai_about_data(
                     google_api_key,
                     st.session_state.df_detalle,
-                    st.session_state.df_cashflow,
                     prompt
                 )
                 
@@ -490,8 +471,8 @@ if st.session_state.data_loaded:
                         with st.spinner("Generando gráfico..."):
                             fig = create_chart_from_ai_response(
                                 response, 
-                                st.session_state.df_detalle, 
-                                st.session_state.df_cashflow
+                                st.session_state.df_detalle
+                               # st.session_state.df_cashflow
                             )
                             
                             if fig:
@@ -551,7 +532,6 @@ if st.session_state.data_loaded and st.session_state.messages:
 
 # Información adicional en el pie de página
 st.sidebar.markdown("---")
-st.sidebar.markdown("🤖 **Powered by Gemini AI**")
+st.sidebar.markdown("🤖 **Powered by DeepSeek**")
 st.sidebar.markdown("📊 **Streamlit App**")
-
 st.sidebar.caption("Actualiza automáticamente cada 5 minutos")
