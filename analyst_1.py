@@ -85,46 +85,43 @@ def clean_column_names(df):
     return df
 
 @st.cache_data(ttl=300)  # Cache por 5 minutos
-def load_google_sheets(_key_path, _spreadsheet_id):
-    """Cargar datos de Google Sheets con cache"""
+def load_google_sheets():
+    """Load data from Google Sheets using Streamlit Secrets."""
     try:
-        # Load service account credentials
-        creds = Credentials.from_service_account_file(
-            _key_path,
+        # Load credentials directly from Streamlit secrets
+        creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+        creds = Credentials.from_service_account_info(
+            creds_info,
             scopes=[
                 "https://www.googleapis.com/auth/spreadsheets.readonly",
                 "https://www.googleapis.com/auth/drive"
             ]
         )
-        
+
         # Authorize gspread
         gc = gspread.authorize(creds)
-        
-        # Open spreadsheet
-        sh = gc.open_by_key(_spreadsheet_id)
-        
-        # Load "detalle" worksheet
+
+        # Spreadsheet ID also stored in secrets
+        spreadsheet_id = st.secrets["SPREADSHEET_ID"]
+        sh = gc.open_by_key(spreadsheet_id)
+
+        # Load "cashflow2" worksheet
         ws_detalle = sh.worksheet("cashflow2")
         values_detalle = ws_detalle.get_all_values()
+
         headers_detalle = values_detalle[0]
         data_detalle = values_detalle[1:]
         df_detalle = pd.DataFrame(data_detalle, columns=headers_detalle)
-        # Limpiar nombres de columnas para detalle
-        df_detalle = clean_column_names(df_detalle)
-        
-        # Load "Cashflow" worksheet
-        # ws_cashflow = sh.worksheet("Cashflow")
-        # values_cashflow = ws_cashflow.get_all_values()
-        # headers_cashflow = values_cashflow[0]
-        # data_cashflow = values_cashflow[1:]
-        # df_cashflow = pd.DataFrame(data_cashflow, columns=headers_cashflow)
-        # Limpiar nombres de columnas para cashflow
-        # df_cashflow = clean_column_names(df_cashflow)
-        
+
+        # Optional: clean column names if you have that function
+        if "clean_column_names" in globals():
+            df_detalle = clean_column_names(df_detalle)
+
         return df_detalle, None
+
     except Exception as e:
         return None, str(e)
-
+        
 def dataframes_to_context(df_detalle, max_rows=120):
     """Convertir DataFrames a contexto para el modelo"""
     context = "=== DATOS DISPONIBLES ===\n\n"
@@ -535,4 +532,5 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("🤖 **Powered by DeepSeek**")
 st.sidebar.markdown("📊 **Streamlit App**")
 st.sidebar.caption("Actualiza automáticamente cada 5 minutos")
+
 
