@@ -123,7 +123,7 @@ def load_google_sheets(_key_path, _spreadsheet_id):
         
         return df_detalle, None
     except Exception as e:
-        return None, None, str(e)
+        return None, str(e)
 
 def dataframes_to_context(df_detalle, max_rows=120):
     """Convertir DataFrames a contexto para el modelo"""
@@ -535,3 +535,4 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("🤖 **Powered by DeepSeek**")
 st.sidebar.markdown("📊 **Streamlit App**")
 st.sidebar.caption("Actualiza automáticamente cada 5 minutos")
+
