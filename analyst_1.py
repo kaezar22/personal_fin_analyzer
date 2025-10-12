@@ -338,7 +338,7 @@ if 'data_loaded' not in st.session_state:
 # Botón para cargar datos
 if st.sidebar.button("🔄 Cargar/Actualizar Datos", type="primary"):
     with st.spinner("Cargando datos de Google Sheets..."):
-        df_detalle, error = load_google_sheets(key_path, spreadsheet_id)
+        df_detalle, error = load_google_sheets()
         
         if error:
             st.error(f"❌ Error al cargar datos: {error}")
@@ -532,5 +532,6 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("🤖 **Powered by DeepSeek**")
 st.sidebar.markdown("📊 **Streamlit App**")
 st.sidebar.caption("Actualiza automáticamente cada 5 minutos")
+
 
 
