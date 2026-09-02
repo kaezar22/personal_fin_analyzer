@@ -25,6 +25,16 @@ def _select_or_new(label, options, key):
 def render_input_tab(df_raw):
     st.subheader("Registrar movimiento")
 
+    # Show the outcome of the previous submission. We stash it in
+    # session_state instead of calling st.success()/st.error() right before
+    # st.rerun() below, because a rerun tears the page down immediately and
+    # a message shown right before it never gets a chance to actually
+    # render on screen.
+    if st.session_state.get("input_tab_ok_msg"):
+        st.success(st.session_state.pop("input_tab_ok_msg"))
+    if st.session_state.get("input_tab_error_msg"):
+        st.error(st.session_state.pop("input_tab_error_msg"))
+
     categorias = unique_sorted(df_raw, COL_CATEGORIA) or DEFAULT_CATEGORIAS
     medios = unique_sorted(df_raw, COL_MEDIO) or DEFAULT_MEDIOS
     detalles = unique_sorted(df_raw, COL_DETALLE)
@@ -62,7 +72,11 @@ def render_input_tab(df_raw):
         }
         ok, error = append_expense(row)
         if ok:
-            st.success(f"Movimiento guardado: {categoria} / {detalle} - {valor:,.0f}")
-            st.rerun()
+            st.session_state["input_tab_ok_msg"] = (
+                f"Movimiento guardado: {categoria} / {detalle} - {valor:,.0f}"
+            )
         else:
-            st.error(f"No se pudo guardar en Google Sheets: {error}")
+            st.session_state["input_tab_error_msg"] = (
+                f"No se pudo guardar en Google Sheets: {error}"
+            )
+        st.rerun()
