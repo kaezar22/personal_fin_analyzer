@@ -40,4 +40,6 @@ CATEGORY_COLOR_SEQUENCE = [
     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
 ]
 
-GEMINI_MODEL = "gemini-2.0-flash"
+# AI assistant (DeepSeek, OpenAI-compatible API)
+DEEPSEEK_MODEL = "deepseek-chat"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"

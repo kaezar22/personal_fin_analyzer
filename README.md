@@ -11,7 +11,7 @@ Streamlit app with 3 tabs backed by the "cashflow2" sheet in the "reflauta" Goog
 `requirements.txt` has the dependencies. Streamlit secrets needed (`.streamlit/secrets.toml` locally, or the Cloud app's Secrets panel):
 
 ```toml
-GOOGLE_API_KEY = "..."
+DEEPSEEK_API_KEY = "..."
 SPREADSHEET_ID = "185BYhloP_cxaikxb4lK4joFAC0SQCfea35l4Owb3tJs"
 GOOGLE_CREDENTIALS = '''{ ...service account json... }'''
 ```

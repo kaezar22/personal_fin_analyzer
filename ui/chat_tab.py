@@ -7,7 +7,7 @@ import plotly.express as px
 import streamlit as st
 from openai import OpenAI
 
-from config import COL_FECHA, COL_CATEGORIA, COL_DETALLE, COL_VALOR, COL_MEDIO, GEMINI_MODEL
+from config import COL_FECHA, COL_CATEGORIA, COL_DETALLE, COL_VALOR, COL_MEDIO, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL
 
 CHART_START = "---CHART_JSON---"
 CHART_END = "---END_CHART_JSON---"
@@ -53,15 +53,12 @@ def _build_context(df: pd.DataFrame, max_rows: int = 1500) -> str:
 
 def _ask_ai(api_key: str, df: pd.DataFrame, question: str):
     try:
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
+        client = OpenAI(api_key=api_key, base_url=DEEPSEEK_BASE_URL)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"{_build_context(df)}\n\nPregunta: {question}"},
         ]
-        response = client.chat.completions.create(model=GEMINI_MODEL, messages=messages)
+        response = client.chat.completions.create(model=DEEPSEEK_MODEL, messages=messages)
         return response.choices[0].message.content, None
     except Exception as e:
         return None, str(e)
@@ -134,9 +131,9 @@ def _render_assistant_message(content: str, df: pd.DataFrame):
 def render_chat_tab(df: pd.DataFrame):
     st.subheader("Chat con tu asistente financiero")
 
-    api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    api_key = st.secrets.get("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
-        st.error("Falta GOOGLE_API_KEY en los secrets de Streamlit.")
+        st.error("Falta DEEPSEEK_API_KEY en los secrets de Streamlit.")
         return
 
     if "messages" not in st.session_state:
