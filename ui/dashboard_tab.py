@@ -1,4 +1,7 @@
 """Tab 2 - dashboard with KPIs and charts."""
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -12,6 +15,19 @@ from core.transform import spend_by_category, top_detalle, unique_sorted
 PERIOD_LABELS = {"Diario": "D", "Mensual": "M", "Anual": "Y"}
 FREQ_MAP = {"D": "D", "M": "MS", "Y": "YS"}
 
+# Filtros por defecto del dashboard
+MESES_ATRAS_DEFAULT = 2  # mes actual + los 2 anteriores
+CATEGORIAS_DEFAULT = ["eatout", "fun", "mercado", "servicios", "transporte", "otros"]
+
+
+def _inicio_por_defecto(hoy):
+    """Día 1 del mes que está MESES_ATRAS_DEFAULT meses antes de hoy."""
+    mes, anio = hoy.month - MESES_ATRAS_DEFAULT, hoy.year
+    while mes <= 0:
+        mes += 12
+        anio -= 1
+    return hoy.replace(year=anio, month=mes, day=1)
+
 
 def render_dashboard_tab(df):
     st.subheader("Dashboard financiero")
@@ -22,21 +38,31 @@ def render_dashboard_tab(df):
 
     fcol1, fcol2, fcol3 = st.columns([1.3, 1, 1.3])
     with fcol1:
-        min_date, max_date = df[COL_FECHA].min().date(), df[COL_FECHA].max().date()
+        # Hora de Bogotá: el servidor de Streamlit corre en UTC.
+        hoy = datetime.now(ZoneInfo("America/Bogota")).date()
+        min_date = df[COL_FECHA].min().date()
+        max_date = max(df[COL_FECHA].max().date(), hoy)
+        default_start = max(_inicio_por_defecto(hoy), min_date)
         date_range = st.date_input(
-            "Rango de fechas", value=(min_date, max_date),
+            "Rango de fechas", value=(default_start, hoy),
             min_value=min_date, max_value=max_date,
         )
     with fcol2:
         periodo_label = st.radio("Ver por", list(PERIOD_LABELS.keys()), horizontal=True, index=1)
     with fcol3:
         todas_categorias = unique_sorted(df, COL_CATEGORIA)
-        categorias_sel = st.multiselect("Categorías", todas_categorias, default=todas_categorias)
+        categorias_default = [c for c in CATEGORIAS_DEFAULT if c in todas_categorias]
+        categorias_sel = st.multiselect(
+            "Categorías", todas_categorias,
+            default=categorias_default or todas_categorias,
+        )
 
     if isinstance(date_range, tuple) and len(date_range) == 2:
         start, end = date_range
+    elif isinstance(date_range, tuple) and len(date_range) == 1:
+        start = end = date_range[0]  # mientras se elige la segunda fecha
     else:
-        start, end = min_date, max_date
+        start, end = default_start, hoy
 
     mask = (df[COL_FECHA].dt.date >= start) & (df[COL_FECHA].dt.date <= end)
     if categorias_sel:
